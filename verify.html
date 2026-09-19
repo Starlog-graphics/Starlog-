@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Confirm Your Email — Starlog</title>
+<meta name="description" content="Check your email for the Starlog confirmation link." />
+<link rel="icon" href="favicon.png" />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="starlog.css" />
+</head>
+<body class="auth-body">
+<div data-header="verify.html" data-auth-header></div>
+<main class="auth-main">
+  <div class="auth-card center">
+    <h1 style="font-size:24px">Check your email</h1>
+    <p class="muted small mt-1">A confirmation email has been sent to <strong data-dest></strong>.</p>
+    <p class="muted small mt-2">Open the email and click the confirmation link to activate your Starlog account. You do not need to enter an OTP code.</p>
+    <div class="surface mt-3" style="padding:18px">
+      <p class="bold">Didn't receive the email?</p>
+      <p class="hint mt-1">Check your spam/junk folder, then use the button below to send another confirmation email.</p>
+      <button class="btn btn-outline mt-2" id="resend" type="button">Resend confirmation email</button>
+    </div>
+    <a class="btn btn-primary btn-block btn-lg mt-3" id="continue" href="home.html">Continue</a>
+    <p class="hint center mt-2">Email confirmation helps protect your Starlog account.</p>
+  </div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="starlog.js"></script>
+<script src="starlog-data.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var dest = query("to") || "";
+    var next = query("next") || "home.html";
+    document.querySelector("[data-dest]").textContent = dest || "your email address";
+    document.getElementById("continue").href = next;
+    document.getElementById("resend").addEventListener("click", async function () {
+      if (!dest || !isEmailAddress(dest)) { toast("Enter your email address again from the signup page.", "error"); return; }
+      var btn=this; btn.disabled=true; btn.textContent="Sending…";
+      var res=await sbResendConfirmation(dest);
+      btn.disabled=false; btn.textContent="Resend confirmation email";
+      toast(res.error ? res.error.message : "A new confirmation email has been sent.", res.error ? "error" : "success");
+    });
+  });
+</script>
+</body>
+</html>

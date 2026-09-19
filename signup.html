@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sign Up — Create Your Free Starlog Account</title>
+<meta name="description" content="Create a Starlog account with your email address and start ordering premium customized designs." />
+<meta property="og:title" content="Sign Up — Starlog" />
+<meta property="og:description" content="Join Starlog and order premium customized designs from ₦5,000." />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<link rel="icon" href="favicon.png" />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="starlog.css" />
+</head>
+<body class="auth-body">
+<div data-header="signup.html" data-auth-header></div>
+
+<main class="auth-main">
+  <div class="auth-card">
+    <h1 style="font-size:24px">Create your account</h1>
+    <p class="muted small mt-1">Sign up with your email address.</p>
+
+    <form class="mt-3" id="signupForm" novalidate>
+      <div class="field">
+        <label class="label" for="name">Full Name</label>
+        <input class="input" id="name" autocomplete="name" placeholder="Amara Kane" />
+        <p class="error hidden" data-err="name">Please enter your name.</p>
+      </div>
+
+      <div class="field">
+        <label class="label" for="contact">Email Address</label>
+        <input class="input" id="contact" autocomplete="email" placeholder="you@example.com" />
+        <p class="error hidden" data-err="contact">Enter a valid email address.</p>
+      </div>
+
+      <div class="field">
+        <label class="label" for="password">Password</label>
+        <div class="input-group">
+          <input class="input" id="password" type="password" autocomplete="new-password" placeholder="At least 10 characters" />
+          <button class="input-icon-btn" type="button" id="toggle" aria-label="Show password">Show</button>
+        </div>
+        <div class="meter"><span id="meter"></span></div>
+        <ul class="rules" id="rules">
+          <li data-rule="length">At least 10 characters</li>
+          <li data-rule="letter">Contains letters</li>
+          <li data-rule="number">Contains numbers</li>
+          <li data-rule="symbol">Contains a symbol (e.g. ! @ # $)</li>
+        </ul>
+      </div>
+
+      <div class="field">
+        <label class="label" for="confirm">Confirm Password</label>
+        <input class="input" id="confirm" type="password" autocomplete="new-password" placeholder="Re-enter password" />
+        <p class="error hidden" data-err="confirm">Passwords do not match.</p>
+      </div>
+
+      <div class="oauth-stack mt-3">
+        <button class="btn btn-outline btn-block oauth-btn" type="button" id="googleBtn"><span class="oauth-icon" data-google-icon></span><span>Continue with Google</span></button>
+        <div class="divider"><span>or</span></div>
+      </div>
+
+      <button class="btn btn-primary btn-block btn-lg mt-2" type="submit" id="submit" disabled>Create Account</button>
+    </form>
+
+    <p class="muted small center mt-3">Already have an account? <a href="login.html">Login</a></p>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="starlog.js"></script>
+<script src="starlog-data.js"></script>
+<script>
+
+  document.addEventListener("DOMContentLoaded", function () {
+    var form = document.getElementById("signupForm");
+    var name = document.getElementById("name");
+    var contact = document.getElementById("contact");
+    var password = document.getElementById("password");
+    var confirm = document.getElementById("confirm");
+    var submit = document.getElementById("submit");
+    var meter = document.getElementById("meter");
+    var toggle = document.getElementById("toggle");
+    document.querySelector("[data-google-icon]").innerHTML = ICONS.google;
+    document.getElementById("googleBtn").addEventListener("click", async function(){ await sbOAuth("google", "home.html"); });
+
+    toggle.addEventListener("click", function () {
+      var show = password.type === "password";
+      password.type = show ? "text" : "password";
+      confirm.type = password.type;
+      toggle.textContent = show ? "Hide" : "Show";
+    });
+
+    function showError(key, on) {
+      document.querySelector('[data-err="' + key + '"]').classList.toggle("hidden", !on);
+    }
+
+    function refresh() {
+      var checks = passwordChecks(password.value);
+      var passed = 0;
+      Object.keys(checks).forEach(function (key) {
+        var li = document.querySelector('[data-rule="' + key + '"]');
+        li.classList.toggle("done", checks[key]);
+        if (checks[key]) passed++;
+      });
+      meter.style.width = (passed / 4) * 100 + "%";
+      var match = confirm.value.length > 0 && confirm.value === password.value;
+      showError("confirm", confirm.value.length > 0 && !match);
+      submit.disabled = !(passwordStrong(password.value) && match);
+    }
+
+    [password, confirm].forEach(function (el) { el.addEventListener("input", refresh); });
+
+    form.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var okName = name.value.trim().length >= 2;
+      var okContact = isEmailAddress(contact.value);
+      showError("name", !okName);
+      showError("contact", !okContact);
+      if (!okName || !okContact) return;
+      if (!passwordStrong(password.value)) {
+        toast("Password must be 10+ characters with letters, numbers and a symbol.", "error");
+        return;
+      }
+      if (password.value !== confirm.value) { showError("confirm", true); return; }
+
+      submit.disabled = true;
+      submit.textContent = "Creating account…";
+      var res = await sbSignUp({
+        name: name.value.trim(),
+        contact: contact.value,
+        password: password.value,
+        referralCode: query("ref"),
+      });
+      if (res.error) {
+        submit.disabled = false;
+        submit.textContent = "Create Account";
+        toast(res.error.message, "error");
+        return;
+      }
+      toast("Account created — check your email for a confirmation link.", "success");
+      location.href = "verify.html?mode=signup&to=" + encodeURIComponent(contact.value.trim());
+    });
+
+    refresh();
+  });
+
+</script>
+</body>
+</html>

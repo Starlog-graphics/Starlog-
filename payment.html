@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payment — Starlog</title>
+<link rel="icon" href="favicon.png">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="starlog.css">
+</head>
+<body>
+<div data-header="market.html">
+</div><main class="wrap page">
+  <div class="split">
+    <section class="surface reveal">
+      <h1 style="font-size:22px">Secure Payment</h1>
+      <p class="muted small mt-1">Choose your payment method.</p>
+
+      <div class="payment-methods mt-3" role="group" aria-label="Choose your payment method">
+        <button type="button" class="payment-method" id="chooseCard" aria-expanded="false">
+          <strong>Card payment</strong>
+          <span class="muted small">Pay with your card through Paystack.</span>
+        </button>
+        <button type="button" class="payment-method" id="chooseBank" aria-expanded="false">
+          <strong>Bank transfer</strong>
+          <span class="muted small">Transfer to Starlog's payment account.</span>
+        </button>
+      </div>
+
+      <section class="surface payment-panel hidden mt-3" id="cardPanel" aria-hidden="true">
+        <h2 style="font-size:18px">Card payment</h2>
+        <p class="muted small mt-1">Continue to Paystack Checkout to enter your card details. Starlog does not collect your card number, CVV or expiry date.</p>
+        <button class="btn btn-gold btn-block btn-lg mt-3" id="authorize">Continue to Paystack</button>
+      </section>
+
+      <section class="surface payment-panel hidden mt-3" id="bankPanel" aria-hidden="true">
+        <h2 style="font-size:18px">Bank transfer</h2>
+        <div id="bankDetails" class="meta mt-2"></div>
+        <button class="btn btn-outline btn-block mt-2" id="copyAccount">Copy account number</button>
+        <button class="btn btn-primary btn-block btn-lg mt-3" id="bankSent">I have sent the transfer</button>
+        <p class="hint">Your order remains pending until the transfer is verified.</p>
+      </section>
+    </section>
+
+    <aside class="surface reveal" id="summary"></aside>
+  </div>
+</main><div data-footer></div><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="https://js.paystack.co/v2/inline.js"></script><script src="starlog.js"></script><script src="starlog-data.js"></script><script>
+document.addEventListener("DOMContentLoaded", async function () {
+  var user = await guardPage();
+  if (!user) return;
+  var order = await dbOrder(query("order") || query("id"));
+  if (!order) {
+    document.getElementById("summary").innerHTML = '<h2 style="font-size:19px">Order not found</h2>';
+    return;
+  }
+
+  document.getElementById("summary").innerHTML =
+    '<h2 style="font-size:19px">Order summary</h2>' +
+    '<div class="meta mt-2">' +
+    '<div><span class="muted">Order</span><strong>#' + order.id.slice(0, 8).toUpperCase() + '</strong></div>' +
+    '<div><span class="muted">Package</span><strong>' + esc(order.complexity_level) + '</strong></div>' +
+    '<div><span class="muted">Total</span><strong class="price">' + formatNaira(Number(order.total_price)) + '</strong></div>' +
+    '<div><span class="muted">Status</span><strong>' + esc(order.order_status) + '</strong></div>' +
+    '</div>';
+
+  var cfg = await appSettings();
+  document.getElementById("bankDetails").innerHTML =
+    '<div><span class="muted">Bank Name</span><strong>' + esc(cfg.payment_bank_name || "Not configured") + '</strong></div>' +
+    '<div><span class="muted">Account Number</span><strong>' + esc(cfg.payment_account_number || "Not configured") + '</strong></div>' +
+    '<div><span class="muted">Account Name</span><strong>' + esc(cfg.payment_account_name || "Starlog") + '</strong></div>';
+
+  var cardBtn = document.getElementById("chooseCard");
+  var bankBtn = document.getElementById("chooseBank");
+  var cardPanel = document.getElementById("cardPanel");
+  var bankPanel = document.getElementById("bankPanel");
+
+  function selectMethod(method) {
+    var card = method === "card";
+    cardPanel.classList.toggle("hidden", !card);
+    bankPanel.classList.toggle("hidden", card);
+    cardPanel.setAttribute("aria-hidden", String(!card));
+    bankPanel.setAttribute("aria-hidden", String(card));
+    cardBtn.classList.toggle("active", card);
+    bankBtn.classList.toggle("active", !card);
+    cardBtn.setAttribute("aria-expanded", String(card));
+    bankBtn.setAttribute("aria-expanded", String(!card));
+  }
+
+  cardBtn.onclick = function () { selectMethod("card"); };
+  bankBtn.onclick = function () { selectMethod("bank"); };
+
+  document.getElementById("copyAccount").onclick = async function () {
+    if (!cfg.payment_account_number) { toast("Account number is not configured.", "error"); return; }
+    try {
+      await navigator.clipboard.writeText(cfg.payment_account_number);
+      toast("Account number copied!", "success");
+    } catch (e) {
+      toast("Could not copy the account number.", "error");
+    }
+  };
+
+  document.getElementById("bankSent").onclick = async function () {
+    this.disabled = true;
+    try {
+      await createBankTransfer(order.id);
+      toast("Transfer recorded. It will remain pending until verified.", "success");
+    } catch (e) {
+      toast(e.message, "error");
+      this.disabled = false;
+    }
+  };
+
+  document.getElementById("authorize").onclick = async function () {
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = "Opening Paystack…";
+    try {
+      var init = await initializeCardPayment(order.id, user.email);
+      if (!init || !init.access_code) throw new Error("Paystack did not return a valid checkout code.");
+      var popup = new PaystackPop();
+      popup.onSuccess = async function (tx) {
+        try {
+          var v = await verifyPayment(tx.reference || init.reference);
+          if (v.verified) {
+            toast("Payment verified successfully.", "success");
+            setTimeout(function () { location.href = "dashboard.html"; }, 800);
+          } else {
+            toast("Payment is still pending verification.", "error");
+          }
+        } catch (e) {
+          toast(e.message, "error");
+        }
+      };
+      popup.onCancel = function () {
+        toast("Payment cancelled.", "error");
+        btn.disabled = false;
+        btn.textContent = "Continue to Paystack";
+      };
+      popup.onError = function (err) {
+        toast((err && err.message) || "Paystack checkout error.", "error");
+        btn.disabled = false;
+        btn.textContent = "Continue to Paystack";
+      };
+      popup.resumeTransaction(init.access_code);
+    } catch (e) {
+      toast(e.message, "error");
+      btn.disabled = false;
+      btn.textContent = "Continue to Paystack";
+    }
+  };
+
+  initReveal();
+});
+function esc(v) {
+  return String(v == null ? "" : v).replace(/[&<>\"]/g, function (c) {
+    return ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c];
+  });
+}
+</script></body></html>

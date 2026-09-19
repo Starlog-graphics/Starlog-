@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Order &amp; Customize Your Design — Starlog</title>
+<meta name="description" content="Send your customization details and reference images for your Starlog design, choose a design level, then proceed to purchase." />
+<meta property="og:title" content="Order & Customize — Starlog" />
+<meta property="og:description" content="Tell us exactly how you want your design customized." />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="icon" href="favicon.png" />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="starlog.css" />
+</head>
+<body>
+<div data-header="market.html"></div>
+
+<main class="wrap page">
+  <div class="split">
+    <section class="surface reveal">
+      <h1 class="bold" style="font-size:22px" id="orderTitle">Enter customization details</h1>
+      <p class="muted small mt-1" id="orderIntro">Type what you want changed — names, colours, dates, text. Attach reference pictures with the + icon, then press send.</p>
+
+      <div class="mt-3 hidden" id="newFields">
+        <div class="field">
+          <label class="label" for="newCategory">Category</label>
+          <select class="select" id="newCategory"></select>
+        </div>
+        <div class="field mt-2">
+          <label class="label" for="newSub">Subcategory</label>
+          <select class="select" id="newSub"></select>
+        </div>
+        <div class="field mt-2">
+          <label class="label">Design level</label>
+          <div class="chips" id="levelChips"></div>
+        </div>
+      </div>
+
+      <div class="chat mt-2" id="chat">
+        <p class="muted small" id="chatEmpty">Nothing sent yet. Your messages will appear here.</p>
+      </div>
+
+      <div class="composer mt-2">
+        <textarea class="textarea" id="msg" data-autogrow placeholder="e.g. Change the name to Amara Kane, use navy and gold, event date 12 August."></textarea>
+        <div class="thumbs mt-1" id="thumbs"></div>
+        <div class="composer-actions">
+          <button class="round-btn" id="attach" type="button" aria-label="Attach pictures"></button>
+          <input class="hidden" id="files" type="file" accept="image/*" multiple />
+          <span class="muted small" style="flex:1" id="attachNote"></span>
+          <button class="round-btn send" id="send" type="button" aria-label="Send details"></button>
+        </div>
+      </div>
+
+      <p class="hint">Files stay on your device until payment is completed — nothing is uploaded yet.</p>
+    </section>
+
+    <aside class="surface reveal" id="summary"></aside>
+  </div>
+
+  <div class="mt-3">
+    <button class="btn btn-primary btn-block btn-lg" id="proceed">Proceed to Purchase</button>
+  </div>
+</main>
+
+<div data-footer></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="starlog.js"></script>
+<script src="starlog-data.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var isNew = query("new") === "1" || !query("id");
+    var design = null;
+    var levels = [];
+    var level = "CLASSIC";
+
+    document.getElementById("attach").innerHTML = ICONS.plus;
+    document.getElementById("send").innerHTML = ICONS.send;
+    autoGrow(document.getElementById("msg"));
+
+    var pending = [];
+    var messages = [];
+    var maxFiles = Infinity;
+
+    function renderSummary() {
+      var host = document.getElementById("summary");
+      if (design) {
+        host.innerHTML =
+          '<div class="modal-media"><img src="' + design.image + '" alt="' + design.title + '" loading="lazy" /></div>' +
+          '<h2 class="mt-2" style="font-size:19px">' + design.title + "</h2>" +
+          '<div class="meta">' +
+          '<div><span class="muted">Category</span><strong>' + (design.sub ? design.category + " · " + design.sub : design.category) + "</strong></div>" +
+          '<div><span class="muted">Orientation</span><strong>' + design.orientation + "</strong></div>" +
+          '<div><span class="muted">Level</span><strong>' + levelBadgeHtml(design.level) + "</strong></div>" +
+          '<div><span class="muted">Price</span><strong class="price">' + formatNaira(design.price) + "</strong></div>" +
+          "</div>";
+        return;
+      }
+      var picked = levels.filter(function (l) { return l.key === level; })[0] || { label: "Classic", price: 0 };
+      host.innerHTML =
+        '<h2 style="font-size:19px">New design brief</h2>' +
+        '<p class="muted small mt-1">Our designers create this design from scratch, based on your brief.</p>' +
+        '<div class="meta">' +
+        '<div><span class="muted">Category</span><strong id="sumCat">—</strong></div>' +
+        '<div><span class="muted">Design level</span><strong>' + picked.label + "</strong></div>" +
+        '<div><span class="muted">Price</span><strong class="price">' + formatNaira(picked.price) + "</strong></div>" +
+        "</div>";
+      var cat = document.getElementById("newCategory");
+      var sub = document.getElementById("newSub");
+      var el = document.getElementById("sumCat");
+      if (el && cat) el.textContent = sub && sub.value ? cat.value + " · " + sub.value : (cat.value || "—");
+    }
+
+    function allowedLevelsForSelection() {
+      var cat = document.getElementById("newCategory");
+      var sub = document.getElementById("newSub");
+      var c = (cat && cat.value || "").toLowerCase();
+      var sc = (sub && sub.value || "").toLowerCase();
+      return levels.filter(function(l){
+        if ((c === "logos" || c === "clothing designs") && ["SIMPLE","CLASSIC"].indexOf(l.key) !== -1) return false;
+        if (c === "digital products" && sc === "presentation templates" && ["SIMPLE","CLASSIC"].indexOf(l.key) !== -1) return false;
+        if (c === "flyers" && l.key === "SUPA") return false;
+        if (sc === "wedding invitations" && l.key === "SUPA") return false;
+        if (c === "certificates" && ["SIMPLE","SUPA"].indexOf(l.key) !== -1) return false;
+        return true;
+      });
+    }
+
+    function renderLevels() {
+      var allowed = allowedLevelsForSelection();
+      if (!allowed.some(function(l){return l.key===level;})) level = allowed.length ? allowed[0].key : "CLASSIC";
+      document.getElementById("levelChips").innerHTML = allowed.map(function (l) {
+        return '<button type="button" class="chip' + (l.key === level ? " active" : "") + '" data-level="' + l.key + '">' +
+          l.label + " — " + formatNaira(l.price) + "</button>";
+      }).join("");
+      document.querySelectorAll("[data-level]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          level = btn.getAttribute("data-level");
+          renderLevels();
+          renderSummary();
+        });
+      });
+    }
+
+    function applySimpleRule(key) {
+      var isSimple = String(key || "").toUpperCase() === "SIMPLE";
+      maxFiles = isSimple ? 1 : Infinity;
+      var input = document.getElementById("files");
+      if (isSimple) input.removeAttribute("multiple");
+      else input.setAttribute("multiple", "multiple");
+      document.querySelector(".hint").textContent = isSimple
+        ? "Simple designs allow a maximum of one reference picture. Files stay on your device until payment is completed."
+        : "Files stay on your device until payment is completed — nothing is uploaded yet.";
+    }
+
+    if (isNew) {
+      document.getElementById("orderTitle").textContent = "Order a new design";
+      document.getElementById("orderIntro").textContent =
+        "Choose a category and design level, then describe exactly what you want. Attach reference pictures with the + icon and press send.";
+      document.getElementById("newFields").classList.remove("hidden");
+
+      Promise.all([loadTaxonomy(), dbLevels()]).then(function (res) {
+        var tax = res[0];
+        levels = res[1];
+        var cat = document.getElementById("newCategory");
+        var sub = document.getElementById("newSub");
+        cat.innerHTML = tax.map(function (c) { return '<option>' + c.name + "</option>"; }).join("");
+        function fillSubs() {
+          var list = subcategoriesOf(cat.value);
+          sub.innerHTML = '<option value="">No specific subcategory</option>' +
+            list.map(function (s) { return "<option>" + s + "</option>"; }).join("");
+        }
+        fillSubs();
+        cat.addEventListener("change", function () { fillSubs(); renderLevels(); renderSummary(); });
+        sub.addEventListener("change", function(){ renderLevels(); renderSummary(); });
+        renderLevels();
+        renderSummary();
+        applySimpleRule(level);
+      });
+    } else {
+      liveDesign(query("id")).then(function (d) {
+        if (!d) {
+          document.getElementById("summary").innerHTML = noTemplatesHtml();
+          return;
+        }
+        design = d;
+        level = d.level;
+        applySimpleRule(d.level);
+        renderSummary();
+      });
+    }
+
+    var filesInput = document.getElementById("files");
+    document.getElementById("attach").addEventListener("click", function () {
+      if (pending.length >= maxFiles) {
+        toast("Simple designs allow only one picture. Remove it to choose another.", "error");
+        return;
+      }
+      filesInput.click();
+    });
+
+    filesInput.addEventListener("change", function () {
+      var skipped = false;
+      Array.prototype.forEach.call(filesInput.files, function (file) {
+        if (pending.length >= maxFiles) { skipped = true; return; }
+        pending.push({ name: file.name, url: URL.createObjectURL(file) });
+      });
+      filesInput.value = "";
+      if (skipped) toast("Only one picture can be attached for a simple design.", "error");
+      renderThumbs();
+    });
+
+    function renderThumbs() {
+      var host = document.getElementById("thumbs");
+      host.innerHTML = pending.map(function (f, i) {
+        return '<span class="thumb"><img src="' + f.url + '" alt="' + f.name + '" />' +
+          '<button type="button" data-rm="' + i + '" aria-label="Remove ' + f.name + '">×</button></span>';
+      }).join("");
+      host.querySelectorAll("[data-rm]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          pending.splice(Number(btn.getAttribute("data-rm")), 1);
+          renderThumbs();
+        });
+      });
+      document.getElementById("attachNote").textContent =
+        pending.length ? pending.length + " picture" + (pending.length === 1 ? "" : "s") + " attached" : "";
+    }
+
+    var msg = document.getElementById("msg");
+    var chat = document.getElementById("chat");
+
+    document.getElementById("send").addEventListener("click", function () {
+      var text = msg.value.trim();
+      if (!text && !pending.length) {
+        toast("Add your customization details or a picture first.", "error");
+        return;
+      }
+      messages.push({ text: text, files: pending.slice(), time: new Date() });
+      pending = [];
+      msg.value = "";
+      msg.style.height = "auto";
+      renderThumbs();
+      renderChat();
+    });
+
+    function renderChat() {
+      document.getElementById("chatEmpty").classList.toggle("hidden", messages.length > 0);
+      chat.querySelectorAll(".bubble").forEach(function (b) { b.remove(); });
+      messages.forEach(function (m) {
+        var el = document.createElement("div");
+        el.className = "bubble";
+        el.innerHTML =
+          (m.text ? "<p>" + m.text.replace(/</g, "&lt;") + "</p>" : "") +
+          (m.files.length
+            ? '<div class="files">' + m.files.map(function (f) {
+                return '<img src="' + f.url + '" alt="' + f.name + '" loading="lazy" />';
+              }).join("") + "</div>"
+            : "") +
+          "<time>" + m.time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + " · not uploaded yet</time>";
+        chat.appendChild(el);
+      });
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    document.getElementById("proceed").addEventListener("click", async function () {
+      if (!messages.length) {
+        toast("Send your customization details before purchasing.", "error");
+        return;
+      }
+      var btn = this;
+      btn.disabled = true;
+      var brief = messages.map(function (m) { return m.text; }).filter(Boolean).join("\n\n");
+      var order = null;
+
+      try {
+        if (isNew) {
+          var cat = document.getElementById("newCategory");
+          var sub = document.getElementById("newSub");
+          var ids = taxonomyIds(cat.value, sub.value);
+          order = await createCustomOrder({
+            level: level,
+            categoryId: ids.categoryId,
+            subcategoryId: ids.subcategoryId,
+            brief: brief,
+          });
+        } else if (design) {
+          order = await createTemplateOrder(design.id, brief, design.level || level);
+        }
+      } catch (e) {
+        toast(e && e.message ? e.message : "Could not create the order. Please try again.", "error");
+      }
+
+      btn.disabled = false;
+      if (!order) return;
+
+      Store.write("pendingOrder", {
+        orderId: order.id,
+        designId: design ? design.id : null,
+        amount: Number(order.total_price || 0),
+        level: order.complexity_level || level,
+        attachments: messages.reduce(function (n, m) { return n + m.files.length; }, 0),
+        notes: messages.length,
+      });
+      location.href = "payment.html?order=" + order.id;
+    });
+
+    initReveal();
+  });
+</script>
+</body>
+</html>

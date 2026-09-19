@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Home — Your Starlog Design Feed</title>
+<meta name="description" content="Your Starlog home: new arrivals, top categories and quick links to the design market." />
+<meta property="og:title" content="Home — Starlog" />
+<meta property="og:description" content="New arrivals and top design categories on Starlog." />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="icon" href="favicon.png" />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="starlog.css" />
+</head>
+<body>
+<div data-header="home.html"></div>
+
+<main class="wrap page">
+  <section class="surface reveal">
+    <div class="row">
+      <div class="row" style="justify-content:flex-start;flex:1">
+        <span class="avatar avatar-lg" data-avatar>S</span>
+        <div>
+          <h1 style="font-size:24px">Welcome back, <span data-user-name>Guest</span></h1>
+          <p class="muted small mt-1" data-user-contact>Not signed in</p>
+        </div>
+      </div>
+      <a class="btn btn-primary" href="market.html">Browse Market</a>
+    </div>
+  </section>
+
+  <section class="surface earn mt-2 reveal">
+    <p class="earn-amount">Earn ₦1,000 per successful referral</p>
+    <p class="muted mt-1">Follow our channels, share your referral link and earn when a friend buys their first design.</p>
+    <a class="btn btn-gold mt-2" href="dashboard.html#referrals">Open referral programme</a>
+  </section>
+
+  <section class="mt-4 reveal" data-hotpicks></section>
+
+  <section class="mt-4">
+    <div class="row">
+      <h2 class="section-title reveal">Shop by category</h2>
+      <a class="btn btn-gold" href="order.html?new=1">Order new</a>
+    </div>
+    <div class="chips mt-2 reveal" data-cats></div>
+  </section>
+
+  <section class="mt-4">
+    <h2 class="section-title reveal">New arrivals</h2>
+    <div class="grid grid-3 mt-2" data-grid></div>
+  </section>
+
+  <div class="mt-4 reveal" data-community></div>
+</main>
+
+<div data-footer></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="starlog.js"></script>
+<script src="starlog-data.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var host = document.querySelector("[data-grid]");
+    host.innerHTML = Array.from({ length: 6 }).map(function () {
+      return '<div class="skeleton" style="height:300px"></div>';
+    }).join("");
+
+    renderHotPicks(document.querySelector("[data-hotpicks]"));
+
+    loadTaxonomy().then(function () {
+      document.querySelector("[data-cats]").innerHTML = categoryNames().map(function (c) {
+        return '<a class="chip" href="market.html?category=' + encodeURIComponent(c) + '">' + c + "</a>";
+      }).join("");
+    });
+
+    liveSearch("", { sort: "newest", limit: 9 }).then(function (list) {
+      if (!list.length) {
+        host.className = "mt-2";
+        host.innerHTML = noTemplatesHtml();
+        return;
+      }
+      host.innerHTML = list.map(designCardHtml).join("");
+      wireDetailButtons(host);
+    });
+
+    initReveal();
+  });
+</script>
+</body>
+</html>
+

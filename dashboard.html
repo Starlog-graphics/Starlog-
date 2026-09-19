@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dashboard — Orders, Downloads & Referral Rewards | Starlog</title>
+<meta name="description" content="Track your Starlog orders and downloads, read notifications, follow our channels and grow your referral rewards." />
+<meta property="og:title" content="Dashboard — Starlog" />
+<meta property="og:description" content="Your orders, notifications and the Starlog referral programme." />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="icon" href="favicon.png" />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="starlog.css" />
+</head>
+<body>
+<div data-header="dashboard"></div>
+
+<main class="wrap page">
+  <section class="surface reveal">
+    <div class="row">
+      <div class="row" style="justify-content:flex-start;flex:1">
+        <span class="avatar avatar-lg" data-avatar>S</span>
+        <div>
+          <h1 style="font-size:24px">Welcome back, <span data-user-name>Guest</span></h1>
+          <p class="muted small mt-1" data-user-contact>Not signed in</p>
+        </div>
+      </div>
+      <div class="row" style="gap:10px">
+        <a class="btn btn-gold" href="order.html?new=1">Order new</a>
+        <a class="btn btn-primary" href="market.html">Browse Market</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Referral programme -->
+  <section class="surface earn mt-2 reveal" id="referrals" style="scroll-margin-top:90px">
+    <span id="earn"></span>
+    <p class="earn-amount">Your Referral Programme</p>
+    <p class="muted mt-1">Follow our channels, share your link, and earn <strong data-reward>₦1,000</strong> each time a friend completes and pays for their first design.</p>
+
+    <h3 class="mt-4">Follow Starlog</h3>
+    <div class="task-grid">
+      <button class="btn task-btn" data-task="instagram" type="button"></button>
+      <button class="btn task-btn" data-task="x" type="button"></button>
+      <button class="btn task-btn" data-task="tiktok" type="button"></button>
+      <button class="btn task-btn" data-task="youtube" type="button"></button>
+    </div>
+    <p class="hint" id="earnNote"></p>
+
+    <div class="grid grid-4 mt-4" data-ref-stats></div>
+
+    <div class="mt-3">
+      <label class="label">Your referral code</label>
+      <strong class="price" style="font-size:20px;letter-spacing:2px" data-ref-code>—</strong>
+    </div>
+
+    <div class="field mt-2">
+      <label class="label" for="refLink">Your referral link</label>
+      <div class="input-group">
+        <input class="input" id="refLink" readonly />
+        <button class="input-icon-btn" type="button" data-ref-share="copy">Copy</button>
+      </div>
+    </div>
+
+    <div class="social-grid mt-2">
+      <button class="btn social-btn s-whatsapp" type="button" data-ref-share="whatsapp"></button>
+      <button class="btn social-btn s-telegram" type="button" data-ref-share="telegram"></button>
+      <button class="btn social-btn s-x" type="button" data-ref-share="x"></button>
+      <button class="btn social-btn s-instagram" type="button" data-ref-share="instagram"></button>
+      <button class="btn social-btn s-tiktok" type="button" data-ref-share="tiktok"></button>
+    </div>
+
+    <div class="mt-4">
+      <a class="btn btn-gold btn-block btn-lg is-disabled" id="withdrawBtn" href="payout.html" aria-disabled="true">Request Payout</a>
+    </div>
+
+    <h3 class="mt-4">Referral activity</h3>
+    <ul class="list mt-2" data-ref-list></ul>
+    <p class="hint">Current reward: ₦1,000 per successful referral. Self-referrals, repeat rewards and cancelled or refunded orders never pay out.</p>
+  </section>
+
+  <!-- Stats -->
+  <section class="grid grid-4 mt-4" data-stats></section>
+
+  <!-- Orders + notifications -->
+  <section class="split mt-4">
+    <div class="surface reveal">
+      <h2>Recent Orders</h2>
+      <ul class="list mt-2" data-orders></ul>
+    </div>
+    <div class="surface reveal" id="notifications" style="scroll-margin-top:90px">
+      <h2>Notifications</h2>
+      <ul class="list mt-2" data-notifs></ul>
+    </div>
+  </section>
+
+  <div class="mt-4 reveal" data-community></div>
+</main>
+
+<div data-footer></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="starlog.js"></script>
+<script src="starlog-data.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", async function () {
+    var user = await guardPage();
+    if (!user) return;
+
+    var settings = await appSettings();
+    var reward = Number(settings.referral_reward_amount || 1000);
+    document.querySelector("[data-reward]").textContent = formatNaira(reward);
+
+    /* ---------------- orders + stats ---------------- */
+    var orders = await myOrders();
+
+    var stats = [
+      { label: "Total Orders", value: orders.length, icon: "package" },
+      { label: "In Progress", value: orders.filter(function (o) { return o.order_status === "In Progress" || o.order_status === "Paid"; }).length, icon: "clock" },
+      { label: "Completed", value: orders.filter(function (o) { return o.order_status === "Completed"; }).length, icon: "checkCircle" },
+      { label: "Awaiting payment", value: orders.filter(function (o) { return o.order_status === "Pending"; }).length, icon: "download" },
+    ];
+    document.querySelector("[data-stats]").innerHTML = stats.map(function (s) {
+      return '<div class="surface stat reveal"><span class="stat-icon">' + ICONS[s.icon] +
+        '</span><p class="stat-value">' + s.value + '</p><p class="muted small">' + s.label + "</p></div>";
+    }).join("");
+
+    var list = document.querySelector("[data-orders]");
+    if (!orders.length) {
+      list.innerHTML = '<li><p class="muted small">No orders yet. <a href="order.html?new=1">Order a new design</a>.</p></li>';
+    } else {
+      list.innerHTML = orders.map(function (o) {
+        var date = new Date(o.created_at).toLocaleDateString();
+        return '<li data-order="' + o.id + '"><div><p class="bold" style="font-size:14px">' + orderTitle(o) + "</p>" +
+          '<p class="muted small">#' + o.id.slice(0, 8).toUpperCase() + " · " + date + " · " + (o.complexity_level || "—") + "</p>" +
+          '<div class="row mt-1" style="gap:8px;justify-content:flex-start">' +
+          (o.order_status === "Pending"
+            ? '<a class="btn btn-primary btn-sm" href="payment.html?order=' + o.id + '">Pay now</a>'
+            : '<button class="btn btn-outline btn-sm" type="button" data-recust="' + o.id + '">Request re-customization</button>') +
+          "</div></div>" +
+          '<div class="row" style="gap:10px"><span class="badge ' + orderBadgeClass(o.order_status) + '">' + o.order_status + "</span>" +
+          '<span class="price">' + formatNaira(Number(o.total_price)) + "</span></div></li>";
+      }).join("");
+    }
+
+    /* ---------------- re-customization (max 3 per design) ---------------- */
+    list.addEventListener("click", async function (e) {
+      var btn = e.target.closest ? e.target.closest("[data-recust]") : null;
+      if (!btn) return;
+      var orderId = btn.getAttribute("data-recust");
+      var left = await recustomizationsLeft(orderId);
+      var host = ensureModal();
+      host.querySelector(".modal").innerHTML =
+        "<h2>Request a re-customization</h2>" +
+        '<p class="muted small mt-1">' +
+        (left > 0
+          ? "You have <strong>" + left + "</strong> of 3 re-customizations left for this design."
+          : "You have used all 3 re-customizations for this design.") +
+        "</p>" +
+        (left > 0
+          ? '<textarea class="input mt-2" id="recustMsg" rows="4" placeholder="Tell us exactly what to change"></textarea>' +
+            '<p class="error hidden" id="recustErr">Describe the change you need (at least 10 characters).</p>' +
+            '<button class="btn btn-primary btn-block btn-lg mt-3" data-send>Send request</button>'
+          : "") +
+        '<button class="btn btn-outline btn-block mt-2" data-close>Close</button>';
+      host.classList.add("open");
+      host.querySelector("[data-close]").addEventListener("click", closeModal);
+      var send = host.querySelector("[data-send]");
+      if (send) {
+        send.addEventListener("click", async function () {
+          var msg = host.querySelector("#recustMsg").value.trim();
+          var ok = msg.length >= 10;
+          host.querySelector("#recustErr").classList.toggle("hidden", ok);
+          if (!ok) return;
+          send.disabled = true;
+          send.textContent = "Sending…";
+          var res = await requestRecustomization(orderId, msg);
+          send.disabled = false;
+          send.textContent = "Send request";
+          if (res) closeModal();
+        });
+      }
+    });
+
+    /* ---------------- notifications ---------------- */
+    var notifs = await myNotifications();
+    document.querySelector("[data-notifs]").innerHTML = notifs.length
+      ? notifs.map(function (n) {
+          return '<li data-notif="' + n.id + '"><div><p style="font-size:14px"' + (n.is_read ? ' class="muted"' : "") + ">" +
+            "<strong>" + n.title + "</strong> — " + n.message + '</p><p class="muted small">' +
+            new Date(n.created_at).toLocaleString() + "</p></div></li>";
+        }).join("")
+      : '<li><p class="muted small">Nothing here yet.</p></li>';
+
+    document.querySelector("[data-notifs]").addEventListener("click", function (e) {
+      var li = e.target.closest ? e.target.closest("[data-notif]") : null;
+      if (li) markNotificationRead(li.getAttribute("data-notif"));
+    });
+
+    /* ---------------- referral eligibility ---------------- */
+    var summary = await myReferralSummary();
+    var withdrawBtn = document.getElementById("withdrawBtn");
+    if (summary && summary.eligible) { withdrawBtn.classList.remove("is-disabled"); withdrawBtn.removeAttribute("aria-disabled"); }
+    else { withdrawBtn.addEventListener("click",function(e){e.preventDefault();toast("Complete a verified referral first.","error");}); }
+    var note=document.getElementById("earnNote");
+    if(note) note.textContent = summary && summary.eligible ? "Your referral reward is eligible for payout." : "Request Payout stays inactive until the backend confirms a qualifying referral reward.";
+
+    /* ---------------- referral stats + sharing (live) ---------------- */
+    /* ---------------- referral buttons ---------------- */
+    var SHARE_LABELS = {
+      whatsapp: { icon: "whatsapp", label: "WhatsApp" },
+      telegram: { icon: "telegram", label: "Telegram" },
+      x: { icon: "x", label: "X (Twitter)" },
+      instagram: { icon: "instagram", label: "Instagram" },
+      tiktok: { icon: "tiktok", label: "TikTok" },
+    };
+
+    var FOLLOW_LABELS = {
+      instagram: { icon: "instagram", label: "Follow on Instagram", url: STARLOG_CONFIG.social.instagram },
+      x: { icon: "x", label: "Follow on X", url: STARLOG_CONFIG.social.x },
+      tiktok: { icon: "tiktok", label: "Follow on TikTok", url: STARLOG_CONFIG.social.tiktok },
+      youtube: { icon: "youtube", label: "Subscribe on YouTube", url: STARLOG_CONFIG.social.youtube },
+    };
+
+    function renderReferralButtons() {
+      Object.keys(SHARE_LABELS).forEach(function (key) {
+        var btn = document.querySelector('[data-ref-share="' + key + '"]');
+        if (!btn) return;
+        btn.innerHTML = ICONS[SHARE_LABELS[key].icon] + "<span>" + SHARE_LABELS[key].label + "</span>";
+      });
+
+      Object.keys(FOLLOW_LABELS).forEach(function (key) {
+        var btn = document.querySelector('[data-task="' + key + '"]');
+        if (!btn) return;
+        var item = FOLLOW_LABELS[key];
+        btn.innerHTML = ICONS[item.icon] + "<span>" + item.label + "</span>";
+        btn.setAttribute("aria-label", item.label);
+        if (btn.dataset.followBound === "true") return;
+        btn.dataset.followBound = "true";
+        btn.addEventListener("click", function () {
+          if (!item.url) {
+            toast("This Starlog channel is not configured yet.", "error");
+            return;
+          }
+          window.open(item.url, "_blank", "noopener");
+        });
+      });
+    }
+
+    renderReferralButtons();
+
+    async function renderReferrals() {
+      summary = await myReferralSummary();
+      var rows = await myReferralRows();
+      document.querySelector("[data-ref-code]").textContent = summary && summary.code ? summary.code : "—";
+      document.getElementById("refLink").value = summary ? summary.link : "";
+
+      var pending = rows.filter(function (r) { return r.reward_status === "Pending"; }).length;
+      var cards = [
+        { label: "Total referrals", value: rows.length, icon: "users" },
+        { label: "Successful", value: summary ? summary.credited : 0, icon: "checkCircle" },
+        { label: "Pending", value: pending, icon: "clock" },
+        { label: "Referral earnings", value: formatNaira(summary ? summary.earned : 0), icon: "wallet" },
+      ];
+      document.querySelector("[data-ref-stats]").innerHTML = cards.map(function (c) {
+        return '<div class="surface stat"><span class="stat-icon">' + ICONS[c.icon] +
+          '</span><p class="stat-value">' + c.value + '</p><p class="muted small">' + c.label + "</p></div>";
+      }).join("");
+
+      var wb=document.getElementById("withdrawBtn"); if (summary && summary.eligible) { wb.classList.remove("is-disabled"); wb.removeAttribute("aria-disabled"); } else { wb.classList.add("is-disabled"); wb.setAttribute("aria-disabled","true"); }
+
+      document.querySelector("[data-ref-list]").innerHTML = rows.length
+        ? rows.map(function (r) {
+            return '<li><div><p class="bold" style="font-size:14px">Referred friend</p>' +
+              '<p class="muted small">joined ' + new Date(r.created_at).toLocaleDateString() + "</p></div>" +
+              '<div class="row" style="gap:10px"><span class="badge ' +
+              (r.reward_status === "Credited" ? "badge-blue" : r.reward_status === "Cancelled" ? "badge-red" : "badge-gold") +
+              '">' + r.reward_status + "</span>" +
+              '<span class="price">' + formatNaira(Number(r.reward_amount)) + "</span></div></li>";
+          }).join("")
+        : '<li><p class="muted small">No referrals yet — share your link to get started.</p></li>';
+
+      /* Keep the share buttons rendered even if referral data is unavailable. */
+      renderReferralButtons();
+    }
+
+    document.querySelectorAll("[data-ref-share]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (settings.referral_program_enabled === "false") {
+          toast("The referral programme is currently disabled.", "error");
+          return;
+        }
+        if (!summary) return;
+        shareReferral(btn.getAttribute("data-ref-share"), summary.link);
+      });
+    });
+
+    /* `render()` is not a dashboard function. Calling it here previously
+       stopped all remaining JavaScript, leaving the referral buttons empty. */
+    renderReferralButtons();
+    await renderReferrals();
+    initReveal();
+
+    if (location.hash) {
+      var target = document.querySelector(location.hash);
+      if (target) target.scrollIntoView({ behavior: "smooth" });
+    }
+  });
+</script>
+</body>
+</html>

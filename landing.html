@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Starlog — Premium Graphic Designs, Customized & Downloadable</title>
+<meta name="description" content="Starlog is the marketplace for premium logos, flyers, book covers and invitations. Order designs from ₦5,000, customize it your way and download forever." />
+<meta property="og:title" content="Starlog — Premium Graphic Designs" />
+<meta property="og:description" content=" Designs from ₦5,000." />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="icon" href="favicon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="starlog.css" />
+</head>
+<body>
+<div data-header="home.html"></div>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <span class="pill">Starlog design marketplace</span>
+      <h1 class="mt-2">Premium designs, made yours in minutes.</h1>
+      <p class="muted mt-2">Logos, flyers, book covers, invitations and more — choose Simple, Classic, Premium or Supa pricing, customize your design and download forever.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary btn-lg" href="signup.html" style=" background-color:transparent; border-color:#f09433; border-radius:12px;">Create account</a>
+      <div class="hero-actions">
+        <a class="btn btn-primary btn-lg" href="market.html">Browse the Market</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap page">
+    <!-- Earn ₦1,000 advertisement -->
+    <section class="surface earn reveal">
+      <div class="row">
+        <div>
+          <p class="earn-amount">Earn ₦1,000 per successful referral</p>
+          <p class="muted mt-1">Share your referral link and earn ₦1,000 when a referred friend completes a verified first purchase.</p>
+        </div>
+        <a class="btn btn-gold btn-lg" href="dashboard.html#referrals">Join the referral programme</a>
+      </div>
+    </section>
+
+    <section class="mt-4">
+      <h2 class="section-title reveal">Why designers and brands pick Starlog</h2>
+      <div class="grid grid-3 mt-2">
+        <div class="surface reveal"><h3>One simple price</h3><p class="muted small mt-1">Choose Simple, Classic or Premium pricing with clear prices before checkout.</p></div>
+        <div class="surface reveal"><h3>Customized for you</h3><p class="muted small mt-1">Send your details and reference images, and we tailor the design before delivery.</p></div>
+        <div class="surface reveal"><h3>Download forever</h3><p class="muted small mt-1">Your purchases stay in your dashboard for unlimited re-downloads.</p></div>
+      </div>
+    </section>
+
+    <section class="mt-4 reveal" data-hotpicks></section>
+
+    <section class="mt-4">
+      <h2 class="section-title reveal">Popular categories</h2>
+      <div class="chips mt-2 reveal" data-cats></div>
+    </section>
+
+    <section class="mt-4">
+      <h2 class="section-title reveal">Latest designs</h2>
+      <div class="grid grid-3 mt-2" data-featured></div>
+      <a class="btn btn-outline btn-block mt-3" href="market.html">See all designs</a>
+    </section>
+
+    <div class="mt-4 reveal" data-community></div>
+  </div>
+</main>
+
+<div data-footer></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="starlog.js"></script>
+<script src="starlog-data.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    renderHotPicks(document.querySelector("[data-hotpicks]"));
+
+    loadTaxonomy().then(function () {
+      document.querySelector("[data-cats]").innerHTML = categoryNames().map(function (c) {
+        return '<a class="chip" href="market.html?category=' + encodeURIComponent(c) + '">' + c + "</a>";
+      }).join("");
+    });
+
+    var host = document.querySelector("[data-featured]");
+    host.innerHTML = Array.from({ length: 6 }).map(function () {
+      return '<div class="skeleton" style="height:300px"></div>';
+    }).join("");
+    liveSearch("", { sort: "popular", limit: 6 }).then(function (featured) {
+      host.innerHTML = featured.length ? featured.map(designCardHtml).join("") : noTemplatesHtml();
+      wireDetailButtons(host);
+    });
+    initReveal();
+  });
+</script>
+</body>
+</html>
